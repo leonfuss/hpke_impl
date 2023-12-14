@@ -7,12 +7,16 @@ use std::{
 
 use byteorder::{ByteOrder, NetworkEndian};
 
+// simple protocol primitives
 pub const PUBLIC_KEY_REQUEST: &str = "public_key";
 pub const INFORMATION_REQUEST: &str = "information request";
 pub const BEGIN_MESSAGE: &str = "begin message";
 
+// Wraps a source and sink in a single interface to allow to simple message
+// transfer without worrying to much about the implementation of the sink and
+// source
 #[derive(Debug)]
-pub struct LineCodec<Sink, Source>
+pub struct Codec<Sink, Source>
 where
     Sink: Write + Debug,
     Source: Read + Debug,
@@ -21,17 +25,21 @@ where
     reader: io::BufReader<Source>,
 }
 
-impl<Sink, Source> LineCodec<Sink, Source>
+impl<Sink, Source> Codec<Sink, Source>
 where
     Sink: Write + Debug,
     Source: Read + Debug,
 {
-    pub fn new(source: Source, sink: Sink) -> io::Result<LineCodec<Sink, Source>> {
+    // Create a new codec from source and sink
+    pub fn new(source: Source, sink: Sink) -> io::Result<Codec<Sink, Source>> {
         let writer = io::BufWriter::new(sink);
         let reader = io::BufReader::new(source);
-        Ok(LineCodec { reader, writer })
+        Ok(Codec { reader, writer })
     }
 
+    // Write provided bytes to sink and flush the sink.
+    // The message length is prepended to allow for easy retrieval in stream
+    // like environments (eg. Network)
     pub fn write_bytes(&mut self, msg: &[u8]) -> io::Result<()> {
         // write length to sink first
         let mut len = [0u8; 8];
@@ -44,6 +52,7 @@ where
         Ok(())
     }
 
+    // calls write_bytes for every entry
     pub fn write_bundled_bytes(&mut self, bundle: Vec<&[u8]>) -> io::Result<()> {
         for it in bundle {
             self.write_bytes(it)?
@@ -51,6 +60,7 @@ where
         Ok(())
     }
 
+    // Retrieve bytes from the source in a blocking manner.
     pub fn read_bytes(&mut self) -> Result<Vec<u8>, Box<dyn Error>> {
         // retrieve data length
         let mut num = [0u8; 8];
@@ -64,6 +74,9 @@ where
         Ok(buf)
     }
 
+    // Retrieve bytes from source and try to convert them in UTF-8 string. This
+    // function will return an error if the received data is not a valid UTF-8
+    // string.
     pub fn read_string(&mut self) -> Result<String, Box<dyn Error>> {
         let buf = self.read_bytes()?;
         let str = String::from_utf8(buf)?;
@@ -71,10 +84,11 @@ where
     }
 }
 
-pub type TcpStreamLineCodec = LineCodec<TcpStream, TcpStream>;
+pub type TcpStreamCodec = Codec<TcpStream, TcpStream>;
 
-impl LineCodec<TcpStream, TcpStream> {
-    pub fn from_stream(stream: TcpStream) -> io::Result<LineCodec<TcpStream, TcpStream>> {
-        LineCodec::new(stream.try_clone()?, stream)
+impl Codec<TcpStream, TcpStream> {
+    // Construct Codec using the same TCP-stream for source and sink.
+    pub fn from_stream(stream: TcpStream) -> io::Result<Codec<TcpStream, TcpStream>> {
+        Codec::new(stream.try_clone()?, stream)
     }
 }

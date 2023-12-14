@@ -1,13 +1,10 @@
 use std::error::Error;
 use std::net::{TcpListener, TcpStream};
 
-use shared::linecodec::INFORMATION_REQUEST;
-use shared::linecodec::PUBLIC_KEY_REQUEST;
-use shared::linecodec::{TcpStreamLineCodec, BEGIN_MESSAGE};
-use shared::simple_hpke::SimpleHpke;
+use shared::{SimpleHpke, TcpStreamCodec, BEGIN_MESSAGE, INFORMATION_REQUEST, PUBLIC_KEY_REQUEST};
 
 fn handle_client(stream: TcpStream, information: &str) -> Result<(), Box<dyn Error>> {
-    let mut conn = TcpStreamLineCodec::from_stream(stream)?;
+    let mut conn = TcpStreamCodec::from_stream(stream)?;
 
     let (private_key, public_key) = SimpleHpke::generate_key_pair();
 

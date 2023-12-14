@@ -7,25 +7,29 @@ use hpke::Deserializable;
 use hpke::OpModeR;
 use rand::SeedableRng;
 
+// simplify usage with preset algorithms
 pub type SimpleHpke = Hpke<X25519HkdfSha256, ChaCha20Poly1305, HkdfSha256>;
+pub type SimplePublicKey = Key<<X25519HkdfSha256 as hpke::Kem>::PublicKey>;
+pub type SimplePrivateKey = Key<<X25519HkdfSha256 as hpke::Kem>::PrivateKey>;
 
+// This struct is only used to preserved the algorithmic setup as generic parameters over the scope
+// of multiple encryption and decryption.
 pub struct Hpke<Kem, Aead, Kdf>
 where
     Kem: hpke::Kem,
     Aead: hpke::aead::Aead,
     Kdf: hpke::kdf::Kdf,
 {
+    // use use PhantomData to allow for generic parameters
     _kem: std::marker::PhantomData<Kem>,
     _aead: std::marker::PhantomData<Aead>,
     _kdf: std::marker::PhantomData<Kdf>,
 }
 
-pub type SimplePublicKey = Key<<X25519HkdfSha256 as hpke::Kem>::PublicKey>;
-pub type SimplePrivateKey = Key<<X25519HkdfSha256 as hpke::Kem>::PrivateKey>;
-
+// wrap  a key to allow to for comfortable serialize and deserialize.
 pub struct Key<K>
 where
-    K: hpke::Serializable,
+    K: hpke::Serializable + Deserializable,
 {
     key: K,
 }
@@ -55,6 +59,7 @@ where
     Aead: hpke::aead::Aead,
     Kdf: hpke::kdf::Kdf,
 {
+    // get our public and privat key
     pub fn generate_key_pair() -> (
         Key<<Kem as hpke::Kem>::PrivateKey>,
         Key<<Kem as hpke::Kem>::PublicKey>,
@@ -63,6 +68,7 @@ where
         let (privat, public) = Kem::gen_keypair(&mut csprng);
         (Key::new(privat), Key::new(public))
     }
+
     // Given a message and associated data, returns an encapsulated key, ciphertext, and tag. The
     // ciphertext is encrypted with the shared AEAD context
     pub fn encrypt(
